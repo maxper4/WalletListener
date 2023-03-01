@@ -1,0 +1,16 @@
+{
+  "name": "walletlistener",
+  "version": "1.0.0",
+  "description": "Small bot listening for transaction from given addresses",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "author": "maxper",
+  "license": "ISC",
+  "dependencies": {
+    "ethers": "^5.7.2",
+    "node-ipc": "^9.2.1"
+  }
+}
