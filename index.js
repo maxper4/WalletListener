@@ -1,6 +1,7 @@
 const { ethers } = require("ethers");
 const ipc = require('node-ipc');	   
-const config = require("./config.json");
+let config = require("./config.json");
+const { writeFileSync } = require("fs");
 
 const provider = new ethers.providers.JsonRpcProvider(config.RPC_URLs[config.NETWORK]);
 
@@ -8,28 +9,75 @@ const connectToContactor = () => {
     ipc.config.id = 'wallet-listener';
     ipc.config.retry = 1500;
     ipc.config.silent = true;
+
     ipc.connectToNet('contactor', () => {
         ipc.of.contactor.on('connect', () => {
             console.log('Connected to contactor');
         });
     });
+
+    ipc.serveNet(() => ipc.server.on('alert', (message, socket) => {
+        if(message.id == 'add-address') {
+            config.TARGET_ADDRESSES.push(message.address);
+            saveConfig();
+            ipc.of.contactor.emit('alert', "[WalletListener] Added address: " + message.address);
+            console.log("Added address:", message.address);
+        }
+        else if(message.id == 'remove-address') {
+            config.TARGET_ADDRESSES = config.TARGET_ADDRESSES.filter((address) => address != message.address);
+            saveConfig();
+            ipc.of.contactor.emit('alert', "[WalletListener] Removed address: " + message.address);
+            console.log("Removed address:", message.address);
+        }
+        else if(message.id == 'reload') {
+            config = reloadModule("./config.json");
+            ipc.of.contactor.emit('alert', "[WalletListener] Reloaded config");
+            console.log("Reloaded config");
+        }
+    }));
+    ipc.server.start();
 };
 
+const reloadModule = (moduleName) => {
+    delete require.cache[require.resolve(moduleName)]
+    console.log('Reloading ' + moduleName + "...");
+    return require(moduleName)
+}
+
+const saveConfig = () => {
+    writeFileSync("./config.json", JSON.stringify(config, null, 4));
+}
+
 const onTx = (tx) => {
-    ipc.of.contactor.emit('alert', "[WalletListener] New TX at " + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to);
+    ipc.of.contactor.emit('alert', JSON.stringify({id: "wallet-listener", message: "[WalletListener] New TX at " + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to}));
     console.log('New TX at ' + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to);
 }
 
 const main = async () => {
     connectToContactor();
 
+    const args = process.argv;
+    ipc.of.contactor.emit('alert', JSON.stringify({ id: "wallet-listener", message: "[WalletListener] Args: " + args }));
+
+    for(let i = 2; i < args.length; i++) {
+        if(!config.TARGET_ADDRESSES.includes(args[i])) {
+            config.TARGET_ADDRESSES.push(args[i]);
+        }
+    }
+    saveConfig();
+
+    if(config.TARGET_ADDRESSES.length == 0) {
+        console.log("No addresses to listen for. Exiting...");
+        process.exit(0);
+    }
+
     const blockNumber = await provider.getBlockNumber();
 
-    ipc.of.contactor.emit('alert', "[WalletListener] Starting at block: " + blockNumber);
+    ipc.of.contactor.emit('alert', JSON.stringify({ id: "wallet-listener", message: "[WalletListener] Starting at block: " + blockNumber}));
 
     let addresses_str = "[WalletListener] Listening for: " + config.TARGET_ADDRESSES.join(", ");
 
-    ipc.of.contactor.emit('alert', addresses_str);
+    ipc.of.contactor.emit('alert', JSON.stringify({ id: "wallet-listener", message: addresses_str}));
 
     console.log("Starting at block:", blockNumber);
     console.log("Listening for:", config.TARGET_ADDRESSES.join(", "));
