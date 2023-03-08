@@ -20,18 +20,18 @@ const connectToContactor = () => {
         if(message.id == 'add-address') {
             config.TARGET_ADDRESSES.push(message.address);
             saveConfig();
-            ipc.of.contactor.emit('alert', "[WalletListener] Added address: " + message.address);
+            sendAlert("[WalletListener] Added address: " + message.address);
             console.log("Added address:", message.address);
         }
         else if(message.id == 'remove-address') {
             config.TARGET_ADDRESSES = config.TARGET_ADDRESSES.filter((address) => address != message.address);
             saveConfig();
-            ipc.of.contactor.emit('alert', "[WalletListener] Removed address: " + message.address);
+            sendAlert("[WalletListener] Removed address: " + message.address);
             console.log("Removed address:", message.address);
         }
         else if(message.id == 'reload') {
             config = reloadModule("./config.json");
-            ipc.of.contactor.emit('alert', "[WalletListener] Reloaded config");
+            sendAlert("[WalletListener] Reloaded config");
             console.log("Reloaded config");
         }
     }));
@@ -48,8 +48,12 @@ const saveConfig = () => {
     writeFileSync("./config.json", JSON.stringify(config, null, 4));
 }
 
+const sendAlert = (message) => {
+    ipc.of.contactor.emit('alert', JSON.stringify({id: "wallet-listener", message: message}));
+}
+
 const onTx = (tx) => {
-    ipc.of.contactor.emit('alert', JSON.stringify({id: "wallet-listener", message: "[WalletListener] New TX at " + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to}));
+    sendAlert("[WalletListener] New TX at " + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to);
     console.log('New TX at ' + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to);
 }
 
@@ -57,7 +61,7 @@ const main = async () => {
     connectToContactor();
 
     const args = process.argv;
-    ipc.of.contactor.emit('alert', JSON.stringify({ id: "wallet-listener", message: "[WalletListener] Args: " + args }));
+    sendAlert("[WalletListener] Args: " + args);
 
     for(let i = 2; i < args.length; i++) {
         if(!config.TARGET_ADDRESSES.includes(args[i])) {
@@ -73,11 +77,8 @@ const main = async () => {
 
     const blockNumber = await provider.getBlockNumber();
 
-    ipc.of.contactor.emit('alert', JSON.stringify({ id: "wallet-listener", message: "[WalletListener] Starting at block: " + blockNumber}));
-
-    let addresses_str = "[WalletListener] Listening for: " + config.TARGET_ADDRESSES.join(", ");
-
-    ipc.of.contactor.emit('alert', JSON.stringify({ id: "wallet-listener", message: addresses_str}));
+    sendAlert("[WalletListener] Starting at block: " + blockNumber);
+    sendAlert("[WalletListener] Listening for: " + config.TARGET_ADDRESSES.join(", "));
 
     console.log("Starting at block:", blockNumber);
     console.log("Listening for:", config.TARGET_ADDRESSES.join(", "));
