@@ -16,25 +16,56 @@ const connectToContactor = () => {
         });
     });
 
-    ipc.serveNet(() => ipc.server.on('alert', (message, socket) => {
-        if(message.id == 'add-address') {
+    ipc.serveNet(config.SERVER_PORT, () => 
+    {
+        ipc.server.on("ping", (message, socket) => {
+            ipc.server.emit(socket, "pong", "pong");
+        });
+    
+        ipc.server.on("test-running", (message, socket) => {
+            ipc.server.emit(socket, "test-running", "good");
+        });
+
+        ipc.server.on('targets', (message, socket) => {
+            ipc.server.emit(socket, 'targets', config.TARGET_ADDRESSES);
+        });
+
+        ipc.server.on('add-address', (message, socket) => {
+            if(!message.address || config.TARGET_ADDRESSES.includes(message.address)) {
+                ipc.server.emit(socket, "added", false);
+                return;
+            }
+
             config.TARGET_ADDRESSES.push(message.address);
             saveConfig();
+            config = reloadModule("./config.json");
             sendAlert("[WalletListener] Added address: " + message.address);
             console.log("Added address:", message.address);
-        }
-        else if(message.id == 'remove-address') {
+
+            ipc.server.emit(socket, "added", true);
+        });
+
+        ipc.server.on('remove-address', (message, socket) => {
+            if(!message.address || !config.TARGET_ADDRESSES.includes(message.address)) {
+                ipc.server.emit(socket, "removed", false);
+                return;
+            }
+
             config.TARGET_ADDRESSES = config.TARGET_ADDRESSES.filter((address) => address != message.address);
             saveConfig();
+            config = reloadModule("./config.json");
             sendAlert("[WalletListener] Removed address: " + message.address);
             console.log("Removed address:", message.address);
-        }
-        else if(message.id == 'reload') {
+
+            ipc.server.emit(socket, "removed", true);
+        });
+
+        ipc.server.on('reload', (message, socket) => {
             config = reloadModule("./config.json");
             sendAlert("[WalletListener] Reloaded config");
             console.log("Reloaded config");
-        }
-    }));
+        });
+    });
     ipc.server.start();
 };
 
@@ -61,7 +92,6 @@ const main = async () => {
     connectToContactor();
 
     const args = process.argv;
-    sendAlert("[WalletListener] Args: " + args);
 
     for(let i = 2; i < args.length; i++) {
         if(!config.TARGET_ADDRESSES.includes(args[i])) {

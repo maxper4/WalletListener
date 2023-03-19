@@ -10,6 +10,7 @@ Bot listening transaction and notifying you (thanks to the contactor bot) when t
 
 ```
 { 
+    "SERVER_PORT": 4001,
     "NETWORK": "mainnet",
     "RPC_URLs": 
     {
