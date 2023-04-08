@@ -16,9 +16,13 @@ Bot listening transaction and notifying you (thanks to the contactor bot) when t
     {
         "mainnet": "url to a json rpc mainnet node" 
     },
+    "EXPLORER_URLs": {
+        "mainnet": "https://etherscan.io/tx/"
+    },
     "TARGET_ADDRESSES": [
         "address1", "address2", ...
-    ]
+    ],
+    "transactions": []
 }
 ```
 

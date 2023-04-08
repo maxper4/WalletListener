@@ -60,6 +60,31 @@ const connectToContactor = () => {
             ipc.server.emit(socket, "removed", true);
         });
 
+        ipc.server.on('transactions', (message, socket) => {
+            ipc.server.emit(socket, 'transactions', config.transactions);
+        });
+
+        ipc.server.on('remove-transactions', (message, socket) => {
+            if(!message.hashes) {
+                ipc.server.emit(socket, "removed", false);
+                return;
+            }
+
+            let removed = true;
+            for(let hash of message.hashes) {
+                if(!config.transactions.find((tx) => tx.hash == hash)) {
+                    removed = false;
+                    continue;
+                }
+
+                config.transactions = config.transactions.filter((tx) => tx.hash != hash);
+                console.log("Removed transaction:", hash);
+            }
+
+            saveConfig();
+            ipc.server.emit(socket, "removed", removed);
+        });
+
         ipc.server.on('reload', (message, socket) => {
             config = reloadModule("./config.json");
             sendAlert("[WalletListener] Reloaded config");
@@ -86,6 +111,15 @@ const sendAlert = (message) => {
 const onTx = (tx) => {
     sendAlert("[WalletListener] New TX at " + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to);
     console.log('New TX at ' + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to);
+
+    config.transactions.push({
+        hash: tx.hash,
+        url: config.EXPLORER_URLs[config.NETWORK] ? config.EXPLORER_URLs[config.NETWORK] + tx.hash : "",
+        from: tx.from,
+        to: tx.to ? tx.to : "",
+        blockNumber: tx.blockNumber
+    });
+    saveConfig();
 }
 
 const main = async () => {
