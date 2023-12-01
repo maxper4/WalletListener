@@ -108,9 +108,11 @@ const sendAlert = (message) => {
     ipc.of.contactor.emit('alert', JSON.stringify({id: "wallet-listener", message: message}));
 }
 
-const onTx = (tx) => {
-    sendAlert("[WalletListener] New TX at " + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to);
-    console.log('New TX at ' + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + " to " + tx.to);
+const onTx = (tx, nameFrom, nameTo) => {
+    log = "[WalletListener] New TX at block " + tx.blockNumber + ': ' + tx.hash + " from " + tx.from + (nameFrom ? " (" + nameFrom + ")" : "")
+     + " to " + tx.to + (nameTo ? " (" + nameTo + ")" : "") + "\n Explorer: " + (config.EXPLORER_URLs[config.NETWORK] ? config.EXPLORER_URLs[config.NETWORK] + tx.hash : "unavailable");
+    sendAlert(log);
+    console.log(log);
 
     config.transactions.push({
         hash: tx.hash,
@@ -124,6 +126,7 @@ const onTx = (tx) => {
 
 const main = async () => {
     connectToContactor();
+
 
     const args = process.argv;
 
@@ -142,17 +145,27 @@ const main = async () => {
     const blockNumber = await provider.getBlockNumber();
 
     sendAlert("[WalletListener] Starting at block: " + blockNumber);
-    sendAlert("[WalletListener] Listening for: " + config.TARGET_ADDRESSES.join(", "));
+    sendAlert("[WalletListener] Listening for: " + config.TARGET_ADDRESSES.map((account) => {
+        return String(account.address + (account.name ? " (" + account.name + ")" : ""))
+    }).join(", "));
 
     console.log("Starting at block:", blockNumber);
-    console.log("Listening for:", config.TARGET_ADDRESSES.join(", "));
+    console.log("[WalletListener] Listening for: " + config.TARGET_ADDRESSES.map((account) => {
+        return String(account.address + (account.name ? " (" + account.name + ")" : ""))
+    }).join(", "));
+
+    const addresses = config.TARGET_ADDRESSES.map((account) => account.address.toLowerCase());
+    const nameFromAddress = {};
+    for(let account of config.TARGET_ADDRESSES) {
+        nameFromAddress[account.address.toLowerCase()] = account.name;
+    }
 
     provider.on("block", async (blockNumber) => {
         const block = await provider.getBlockWithTransactions(blockNumber);
 
         for (const tx of block.transactions) {
-            if(config.TARGET_ADDRESSES.includes(tx.from.toLowerCase()) || (tx.to && config.TARGET_ADDRESSES.includes(tx.to.toLowerCase()))) {
-                onTx(tx);
+            if(addresses.includes(tx.from.toLowerCase()) || (tx.to && addresses.includes(tx.to.toLowerCase()))) {
+                onTx(tx, nameFromAddress[tx.from.toLowerCase()], tx.to ? nameFromAddress[tx.to.toLowerCase()] : "");
             }
         }
     });
